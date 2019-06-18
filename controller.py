@@ -109,6 +109,7 @@ class ShardHandler(object):
         for num, d in enumerate(spliced_data):
             #enumerate means looping through our data and gives up the looped number we are on 
             #and the element for that loop
+            #gives an extra piece of data in the loop
             #you can use this to write your file
             self._write_shard(num, d)
 
@@ -122,13 +123,20 @@ class ShardHandler(object):
         self.mapping = self.load_map()
         data = self.load_data_from_shards()
 
-        new_shard_num = str(int(max(list(self.mapping.keys))) + 2)
+        keys = [int(z) for z in list(self.mapping.keys())]
+        keys.sort()
+
+        new_shard_num = str(max(keys))
+
+        # new_shard_num = str(int(max(list(self.mapping.keys))) + 2)
 
         spliced_data = self._generate_sharded_data(int(new_shard_num), data)
 
         for num, d in enumerate(spliced_data):
             self._write_shard(num, d)
-
+        os.remove(f'data/(new_shard_num).txt')
+        #how to delete a key from a dictionary
+        self.mapping.pop(new_shard_num)
         self.write_map()
 
     def add_replication(self):
@@ -175,6 +183,9 @@ class ShardHandler(object):
         """Verify that all replications are equal to their primaries and that
          any missing primaries are appropriately recreated from their
          replications."""
+         #our highest level is two so every file should have two replications and identify 
+         #that one is missing in the primary and recreate from the primary replication files
+         #the file structure should match the meta data that we have
         pass
 
     def get_shard_data(self, shardnum=None):
@@ -198,5 +209,7 @@ s.build_shards(5, load_data_from_file())
 print(s.mapping.keys())
 
 s.add_shard()
+
+s.remove_shard()
 
 print(s.mapping.keys())

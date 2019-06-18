@@ -52,6 +52,7 @@ class ShardHandler(object):
             s.write(data)
 
         self.mapping.update(
+            #mapping tells us where the data is and where to find it
             {
                 str(num): {
                     'start': num * len(data),
@@ -60,16 +61,27 @@ class ShardHandler(object):
             }
         )
 
+        #doesn't need to return anything
+
     def _generate_sharded_data(self, count, data):
         """Split the data into as many pieces as needed."""
-        splicenum, rem = divmod(len(data), count)
+        splicenum, rem = divmod(len(data), count) #where we need to interact with the data and 
+        #how to divide it up; first paramenter is how and the second is where to start with the 
+        #leftover
 
-        result = [data[splicenum * z:splicenum * (z + 1)] for z in range(count)]
+
+        result = [
+            data[
+                splicenum * z: #basic string slicing
+                splicenum * (z + 1)] #this breaks up the blocks starting with 0
+                for z in range(count) # returns all of our data
+            ]
         # take care of any odd characters
         if rem > 0:
-            result[-1] += data[-rem:]
+            result[-1] += data[-rem:] #getting the left over information from the database
+            #data is the original big blob of text and return the leftover characters in the index
 
-        return result
+        return result #returns how many segments and what's left over
 
     def load_data_from_shards(self):
         """Grab all the shards, pull all the data, and then concatenate it."""
@@ -82,12 +94,35 @@ class ShardHandler(object):
 
     def add_shard(self):
         """Add a new shard to the existing pool and rebalance the data."""
+        #figuring out how many items we have at first and where to start to add new data
         self.mapping = self.load_map()
         data = self.load_data_from_shards()
         # why 2? Because we have to compensate for zero indexing
-        keys = [int(z) for z in list(self.mapping.keys())]
+        keys = [int(z) for z in list(self.mapping.keys())] #to get in the right order of strings
+        #string map and integer map is always annoying/it's always alphabetizing them
         keys.sort()
-        new_shard_num = str(max(keys) + 2)
+        new_shard_num = str(max(keys) + 2) #to help with 0 indexing
+
+        spliced_data = self._generate_sharded_data(int(new_shard_num), data)
+        #original data split into evenly divided segments and what is left over
+
+        for num, d in enumerate(spliced_data):
+            #enumerate means looping through our data and gives up the looped number we are on 
+            #and the element for that loop
+            #you can use this to write your file
+            self._write_shard(num, d)
+
+        self.write_map()
+        #all the information is updated and written to disk with correct number of index's in it
+
+    def remove_shard(self):
+        """Loads the data from all shards, removes the extra 'database' file,
+        and writes the new number of shards to disk.
+        """
+        self.mapping = self.load_map()
+        data = self.load_data_from_shards()
+
+        new_shard_num = str(int(max(list(self.mapping.keys))) + 2)
 
         spliced_data = self._generate_sharded_data(int(new_shard_num), data)
 
@@ -95,12 +130,6 @@ class ShardHandler(object):
             self._write_shard(num, d)
 
         self.write_map()
-
-    def remove_shard(self):
-        """Loads the data from all shards, removes the extra 'database' file,
-        and writes the new number of shards to disk.
-        """
-        pass
 
     def add_replication(self):
         """Add a level of replication so that each shard has a backup. Label

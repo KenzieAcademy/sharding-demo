@@ -10,8 +10,8 @@ def load_data_from_file(path=None):
     return data
 
 def replication():
-    files = os.listdir("data")
-    first_file = list(filter(lambda x: x.startswith("0"), files))
+    files = os.listdir("data") #path for the data
+    first_file = list(filter(lambda x: x.startswith("0"), files)) #filtering through my list of files
     new_list = [int(x.split("-")[1][:-4]) for x in first_file if "-" in x]
     if new_list:
         return max(new_list)
@@ -40,6 +40,15 @@ class ShardHandler(object):
         with open(self.mapfile, 'r') as m:
             return json.load(m)
 
+    def delete_shard_data(self,*argv):
+        for num in argv:
+            path_ = f"data/{num}.txt"
+            print(path_)
+            if os.path.exists(path_):
+                print("TRUE")
+                os.remove(path_)
+                self.mapping.pop(str(num))
+
     def build_shards(self, count, data=None):
         """Initialize our miniature databases from a clean mapfile. Cannot
         be called if there is an existing mapping -- must use add_shard() or
@@ -61,6 +70,11 @@ class ShardHandler(object):
             os.mkdir("data")
         with open(f"data/{num}.txt", 'w') as s:
             s.write(data)
+
+        if num == 0:
+            start = 0
+        else:
+            start = self.mapping[str(num - 1)]["end"]
 
         self.mapping.update(
             #mapping tells us where the data is and where to find it
@@ -126,29 +140,42 @@ class ShardHandler(object):
 
         self.write_map()
         #all the information is updated and written to disk with correct number of index's in it
+        self.sync_replication()
 
     def remove_shard(self):
         """Loads the data from all shards, removes the extra 'database' file,
         and writes the new number of shards to disk.
         """
+
         self.mapping = self.load_map()
         data = self.load_data_from_shards()
-
-        keys = [int(z) for z in list(self.mapping.keys())]
-        keys.sort()
-
-        new_shard_num = str(max(keys))
-
-        # new_shard_num = str(int(max(list(self.mapping.keys))) + 2)
-
-        spliced_data = self._generate_sharded_data(int(new_shard_num), data)
-
+        current_number_of_shards = len(self.mapping.keys())
+        new_shard_num = current_number_of_shards - 1 if current_number_of_shards > 1 else 1
+        spliced_data = self._generate_sharded_data(new_shard_num, data)
+        self.delete_shard_data(new_shard_num)
         for num, d in enumerate(spliced_data):
             self._write_shard(num, d)
-        os.remove(f'data/(new_shard_num).txt')
-        #how to delete a key from a dictionary
-        self.mapping.pop(new_shard_num)
         self.write_map()
+        self.sync_replication()
+
+        # self.mapping = self.load_map()
+        # data = self.load_data_from_shards()
+
+        # keys = [int(z) for z in list(self.mapping.keys())]
+        # keys.sort()
+
+        # new_shard_num = str(max(keys))
+
+        # # new_shard_num = str(int(max(list(self.mapping.keys))) + 2)
+
+        # spliced_data = self._generate_sharded_data(int(new_shard_num), data)
+
+        # for num, d in enumerate(spliced_data):
+        #     self._write_shard(num, d)
+        # os.remove(f'data/(new_shard_num).txt')
+        # #how to delete a key from a dictionary
+        # self.mapping.pop(new_shard_num)
+        # self.write_map()
 
     def add_replication(self):
         """Add a level of replication so that each shard has a backup. Label
@@ -199,7 +226,7 @@ class ShardHandler(object):
         if new_replication == 0:
             raise Exception("No replication lives here")
         for key in self.mapping.keys():
-            os.remove(f"data/{key}-{str(new_replication + 1)}.txt")
+            os.remove(f"data/{key}-{str(new_replication)}.txt")
 
 
     def sync_replication(self):
@@ -209,7 +236,25 @@ class ShardHandler(object):
          #our highest level is two so every file should have two replications and identify 
          #that one is missing in the primary and recreate from the primary replication files
          #the file structure should match the meta data that we have
-        pass
+        new_replication = replication()
+        files = os.listdir("data")
+        map_keys = set(self.mapping.keys())
+
+        for f in files:
+            if "-" in f:
+                filename_split = f.split("-")
+            else:
+                filename_split = f
+            if filename_split[0] not in map_keys:
+                os.remove(f"data/{f}")
+
+        for key in map_keys:
+            src = f"data/{key}.txt"
+
+            for x in range(new_replication):
+                dst =  f"data/{key}-{str(x+1)}.txt"
+                copyfile(src, dst)
+
 
     def get_shard_data(self, shardnum=None):
         """Return information about a shard from the mapfile."""
@@ -224,6 +269,9 @@ class ShardHandler(object):
         """A helper function to view the mapping data."""
         return self.mapping
 
+    def find_the_word_in_index(self, index):
+        pass
+
 
 s = ShardHandler()
 
@@ -231,8 +279,16 @@ s.build_shards(5, load_data_from_file())
 
 print(s.mapping.keys())
 
-s.add_shard()
+# s.add_shard()
 
 # s.remove_shard()
 
-print(s.mapping.keys())
+# print(s.mapping.keys())
+
+# s.add_replication()
+
+# s.remove_replication()
+
+s.sync_replication()
+
+

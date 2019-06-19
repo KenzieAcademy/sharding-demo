@@ -13,6 +13,7 @@ def replication():
     files = os.listdir("data") #path for the data
     first_file = list(filter(lambda x: x.startswith("0"), files)) #filtering through my list of files
     new_list = [int(x.split("-")[1][:-4]) for x in first_file if "-" in x]
+    # list comprehension 
     if new_list:
         return max(new_list)
     else:
@@ -289,6 +290,6 @@ print(s.mapping.keys())
 
 # s.remove_replication()
 
-s.sync_replication()
+# s.sync_replication()
 
 

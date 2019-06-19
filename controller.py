@@ -1,4 +1,6 @@
 import os, json
+# import shutil
+from shutil import copyfile
 
 filename = "chapter2.txt"
 
@@ -6,6 +8,15 @@ def load_data_from_file(path=None):
     with open(path if path else filename, 'r') as f:
         data = f.read()
     return data
+
+def replication():
+    files = os.listdir("data")
+    first_file = list(filter(lambda x: x.startswith("0"), files))
+    new_list = [int(x.split("-")[1][:-4]) for x in first_file if "-" in x]
+    if new_list:
+        return max(new_list)
+    else:
+        return 0
 
 class ShardHandler(object):
     """
@@ -154,7 +165,14 @@ class ShardHandler(object):
         to detect how many levels there are and appropriately add the next
         level.
         """
-        pass
+
+        new_replication = replication()
+        for key in self.mapping.keys():
+            src = f"data/{key}.txt"
+            dst = f"data/{key}-{str(new_replication + 1)}.txt"
+            copyfile(src, dst)
+        
+        
 
     def remove_replication(self):
         """Remove the highest replication level.
@@ -177,7 +195,12 @@ class ShardHandler(object):
         2.txt (shard 2, primary)
         etc...
         """
-        pass
+        new_replication = replication()
+        if new_replication == 0:
+            raise Exception("No replication lives here")
+        for key in self.mapping.keys():
+            os.remove(f"data/{key}-{str(new_replication + 1)}.txt")
+
 
     def sync_replication(self):
         """Verify that all replications are equal to their primaries and that
@@ -210,6 +233,6 @@ print(s.mapping.keys())
 
 s.add_shard()
 
-s.remove_shard()
+# s.remove_shard()
 
 print(s.mapping.keys())

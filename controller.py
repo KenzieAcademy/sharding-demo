@@ -146,7 +146,26 @@ class ShardHandler(object):
         """Loads the data from all shards, removes the extra 'database' file,
         and writes the new number of shards to disk.
         """
-        pass
+        self.mapping = self.load_map()
+        keys = [int(z) for z in self.get_shard_ids()]
+        keys.sort()
+        # zero indexing removes 1 for us so nothing needs to be added
+        new_shard_num = max(keys)
+
+        data = self.load_data_from_shards()
+
+        spliced_data = self._generate_sharded_data(new_shard_num, data)
+        del self.mapping[str(new_shard_num)]
+        for file in os.listdir(f'data'):
+            os.remove(f'data/{file}')
+        os.remove('mapping.json')
+        for num, d in enumerate(spliced_data):
+            self._write_shard(num, d)
+
+
+        self.write_map()
+
+        self.sync_replication()
 
     def add_replication(self) -> None:
         """Add a level of replication so that each shard has a backup. Label
@@ -163,7 +182,8 @@ class ShardHandler(object):
         to detect how many levels there are and appropriately add the next
         level.
         """
-        pass
+        for file in os.listdir(f"data"):        
+            pass
 
     def remove_replication(self) -> None:
         """Remove the highest replication level.
@@ -215,5 +235,9 @@ s.build_shards(5, load_data_from_file())
 print(s.mapping.keys())
 
 s.add_shard()
+
+print(s.mapping.keys())
+
+s.remove_shard()
 
 print(s.mapping.keys())

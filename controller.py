@@ -124,6 +124,15 @@ class ShardHandler(object):
                 result.append(f.read())
         return ''.join(result)
 
+    def get_replication_level(self):
+        """Returns what our highest replication level is"""
+        keys = [z[-1] for z in self.get_replication_ids()]
+
+        if not keys:
+            return 0
+
+        return int(max(keys))
+
     def add_shard(self) -> None:
         """Add a new shard to the existing pool and rebalance the data."""
         self.mapping = self.load_map()
@@ -146,7 +155,25 @@ class ShardHandler(object):
         """Loads the data from all shards, removes the extra 'database' file,
         and writes the new number of shards to disk.
         """
-        pass
+        self.mapping = self.load_map()
+        data = self.load_data_from_shards()
+        keys = [int(z) for z in self.get_shard_ids()]
+        keys.sort()
+
+        new_shard_num = max(keys)
+
+        spliced_data = self._generate_sharded_data(new_shard_num, data)
+
+        self.mapping = {}
+
+        os.remove('data/' + str(max(keys)) + '.txt')
+
+        for num, d in enumerate(spliced_data):
+            self._write_shard(num, d)
+
+        self.write_map()
+
+        self.sync_replication()
 
     def add_replication(self) -> None:
         """Add a level of replication so that each shard has a backup. Label
@@ -163,7 +190,31 @@ class ShardHandler(object):
         to detect how many levels there are and appropriately add the next
         level.
         """
-        pass
+        self.replication_level = self.get_replication_level()
+
+        self.replication_level += 1
+
+        keys = self.get_shard_ids()
+
+        data_list = os.listdir('./data')
+
+        primary_list = []
+
+        for data in data_list:
+            if '-' not in data:
+                primary_list.append(data)
+
+        for number, file in enumerate(sorted(primary_list)):
+            source_file = f'./data/{file}'
+            destination_file = f'./data/{number}-{self.replication_level}.txt'
+            copyfile(source_file, destination_file)
+
+        for a, z in enumerate(keys):
+            self.mapping[f'{a}-{self.replication_level}'] = self.mapping[z]
+
+        self.write_map()
+
+        self.sync_replication()
 
     def remove_replication(self) -> None:
         """Remove the highest replication level.
@@ -186,13 +237,70 @@ class ShardHandler(object):
         2.txt (shard 2, primary)
         etc...
         """
-        pass
+        self.replication_level = self.get_replication_level()
+
+        keys = self.get_shard_ids()
+
+        if self.replication_level > 0:
+            data_list = os.listdir('./data')
+            for data in data_list:
+                if '-' in data:
+                    if int(data[-5]) == self.replication_level:
+                        os.remove(f'./data/{data}')
+            for a, z in enumerate(keys):
+                top_replication = f'{a}-{self.replication_level}'
+                self.mapping.pop(top_replication)
+            self.write_map()
+            self.replication_level -= 1
+        else:
+            print('Nothing hurr, brah.')
 
     def sync_replication(self) -> None:
         """Verify that all replications are equal to their primaries and that
         any missing primaries are appropriately recreated from their
         replications."""
-        pass
+        def check_primary():
+            primary_list = []
+            replication_list = []
+            replication_to_be_created = []
+            data_list = os.listdir('./data')
+
+            for data in data_list:
+                if '-' in data:
+                    replication_list.append(data)
+                else:
+                    primary_list.append(data)
+
+            for replication in replication_list:
+                primary_number = replication[0]
+                replication_stat = os.stat(f'./data/{replication}')
+                replication_size = replication_stat.st_size
+                primary_stat = os.stat(f'./data/{primary_number}.txt')
+                primary_size = primary_stat.st_size
+                if primary_size != replication_size:
+                    replication_to_be_created.append(replication)
+                else:
+                    print('We good.')
+            print(replication_to_be_created)
+            return replication_to_be_created
+
+        def replication_recreation(recreation):
+            for f in recreation:
+                primary_number = f[0]
+                copyfile(f'./data/{primary_number}.txt', f'./data/{f}')
+
+        def primary_recreation():
+            self.replication_level = self.get_replication_level()
+            keys = self.get_shard_ids()
+
+            for file in keys:
+                if not os.path.exists(f'./data/{file}.txt'):
+                    copyfile(f'./data/{file}-{self.replication_level}.txt',
+                             f'./data/{file}.txt')
+                    print('File recreated.')
+        primary_recreation()
+        primary_checker = check_primary()
+        replication_recreation(primary_checker)
 
     def get_shard_data(self, shardnum=None) -> [str, Dict]:
         """Return information about a shard from the mapfile."""
@@ -210,10 +318,20 @@ class ShardHandler(object):
 
 s = ShardHandler()
 
-s.build_shards(5, load_data_from_file())
+# s.build_shards(5, load_data_from_file())
 
-print(s.mapping.keys())
+# print(s.mapping.keys())
 
-s.add_shard()
+# s.add_shard()
 
-print(s.mapping.keys())
+# print(s.mapping.keys())
+
+# s.remove_shard()
+
+# print(s.mapping.keys())
+
+# s.add_replication()
+
+# s.remove_replication()
+
+s.sync_replication()

@@ -1,3 +1,5 @@
+"""Pair programmed with astephens91 and perrymw"""
+
 import json
 import os
 from shutil import copyfile

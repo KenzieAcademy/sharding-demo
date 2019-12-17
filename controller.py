@@ -183,19 +183,19 @@ class ShardHandler(object):
         to detect how many levels there are and appropriately add the next
         level.
         """
-        d = {'src':[], 'rep':[]}
+        d = {'src': [], 'rep': []}
         for key in self.mapping.keys():
             if '-' not in key:
                 d['src'].append(key)
             else:
                 d['rep'].append(int(key[key.index('-')+1:]))
         shard_level = max(d['rep']) if d['rep'] else 0
-        
+
         for f in d['src']:
             x = f'{f}-{shard_level+1}.txt'
             f = f+'.txt'
             copyfile(f'data/{f}', f'data/{x}')
-            self._write_shard_mapping(x[:x.index('.')],"",True)
+            self._write_shard_mapping(x[:x.index('.')], "", True)
         self.write_map()
         self.sync_replication()
 
@@ -220,7 +220,7 @@ class ShardHandler(object):
         2.txt (shard 2, primary)
         etc...
         """
-        d = {'src':[], 'rep':[]}
+        d = {'src': [], 'rep': []}
         for key in self.mapping.keys():
             if '-' not in key:
                 d['src'].append(key)
@@ -229,7 +229,7 @@ class ShardHandler(object):
         shard_level = max(d['rep']) if d['rep'] else 0
         if shard_level == 0:
             raise Exception("cannot remove primary shard")
-        
+
         for f in d['src']:
             x = f'{f}-{shard_level}'
             del self.mapping[x]
@@ -237,13 +237,12 @@ class ShardHandler(object):
         self.write_map()
         self.sync_replication()
 
-
     def sync_replication(self) -> None:
         """Verify that all replications are equal to their primaries and that
         any missing primaries are appropriately recreated from their
         replications."""
 
-        mapping_keys =[]
+        mapping_keys = []
         files = []
         for key in self.mapping.keys():
             mapping_keys.append(key+'.txt')
@@ -257,44 +256,20 @@ class ShardHandler(object):
         for i in range(len(mapping_keys)):
             try:
                 if files[i] != mapping_keys[i]:
-                    rep_list = list(filter(lambda x: x[:1] == mapping_keys[i][:1], files))
+                    rep_list = list(
+                        filter(lambda x: x[:1] == mapping_keys[i][:1], files))
                     copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
                     files.append(mapping_keys[i])
                     files.sort()
             except IndexError:
                 try:
-                    rep_list = list(filter(lambda x: x[:1] == mapping_keys[i][:1], files))
+                    rep_list = list(
+                        filter(lambda x: x[:1] == mapping_keys[i][:1], files))
                     copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
                     files.append(mapping_keys[i])
                 except IndexError:
-                    raise Exception("Critical integrity Error: All replications and primary lost for shard - "+mapping_keys[i][:1])
-
-                # print(files[i])
-                # print(mapping_keys[i])
-                # if files[i][:1] > mapping_keys[i][:1]:
-                #     rep_list = list(filter(lambda x: x[:1] == mapping_keys[i][:1], files))
-                #     copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
-                #     files.append(mapping_keys[i])
-                #     files.sort()
-
-                # elif files[i][:1] < mapping_keys[i][:1]:
-                #     print(2)
-                #     pass
-                # elif files[i][files[i].index('-')+1:files[i].index('.')] > mapping_keys[i][mapping_keys[i].index('-')+1:mapping_keys[i].index('.')]:
-                #     rep_list = list(filter(lambda x: x[:1] == mapping_keys[i][:1], files))
-                #     print(rep_list)
-                #     copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
-                #     files.append(mapping_keys[i])
-                #     files.sort()
-                # elif files[i][files[i].index('-')+1:files[i].index('.')] < mapping_keys[i][mapping_keys[i].index('-')+1:mapping_keys[i].index('.')]:
-                #     print(5)
-                #     pass
-                # else:
-                #     print(5)
-                #     pass
-
-
-
+                    raise Exception(
+                        "Critical integrity Error: All replications and primary lost for shard - "+mapping_keys[i][:1])
 
     def get_shard_data(self, shardnum=None) -> [str, Dict]:
         """Return information about a shard from the mapfile."""

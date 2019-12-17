@@ -1,7 +1,9 @@
 import json
 import os
+import re
 from shutil import copyfile
 from typing import List, Dict
+from collections import Counter
 
 filename = "chapter2.txt"
 
@@ -108,7 +110,8 @@ class ShardHandler(object):
         """Split the data into as many pieces as needed."""
         splicenum, rem = divmod(len(data), count)
 
-        result = [data[splicenum * z:splicenum * (z + 1)] for z in range(count)]
+        result = [data[splicenum * z:splicenum *
+                       (z + 1)] for z in range(count)]
         # take care of any odd characters
         if rem > 0:
             result[-1] += data[-rem:]
@@ -157,14 +160,12 @@ class ShardHandler(object):
         spliced_data = self._generate_sharded_data(new_shard_num, data)
         del self.mapping[str(new_shard_num)]
         for file in os.listdir(f'data'):
-            os.remove(f'data/{file}')
-        os.remove('mapping.json')
+            if '-' not in file:
+                os.remove(f'data/{file}')
         for num, d in enumerate(spliced_data):
             self._write_shard(num, d)
 
-
         self.write_map()
-
         self.sync_replication()
 
     def add_replication(self) -> None:
@@ -182,8 +183,21 @@ class ShardHandler(object):
         to detect how many levels there are and appropriately add the next
         level.
         """
-        for file in os.listdir(f"data"):        
-            pass
+        d = {'src':[], 'rep':[]}
+        for key in self.mapping.keys():
+            if '-' not in key:
+                d['src'].append(key)
+            else:
+                d['rep'].append(int(key[key.index('-')+1:]))
+        shard_level = max(d['rep']) if d['rep'] else 0
+        
+        for f in d['src']:
+            x = f'{f}-{shard_level+1}.txt'
+            f = f+'.txt'
+            copyfile(f'data/{f}', f'data/{x}')
+            self._write_shard_mapping(x[:x.index('.')],"",True)
+        self.write_map()
+        self.sync_replication()
 
     def remove_replication(self) -> None:
         """Remove the highest replication level.
@@ -206,13 +220,81 @@ class ShardHandler(object):
         2.txt (shard 2, primary)
         etc...
         """
-        pass
+        d = {'src':[], 'rep':[]}
+        for key in self.mapping.keys():
+            if '-' not in key:
+                d['src'].append(key)
+            else:
+                d['rep'].append(int(key[key.index('-')+1:]))
+        shard_level = max(d['rep']) if d['rep'] else 0
+        if shard_level == 0:
+            raise Exception("cannot remove primary shard")
+        
+        for f in d['src']:
+            x = f'{f}-{shard_level}'
+            del self.mapping[x]
+            os.remove(f'data/{x}.txt')
+        self.write_map()
+        self.sync_replication()
+
 
     def sync_replication(self) -> None:
         """Verify that all replications are equal to their primaries and that
         any missing primaries are appropriately recreated from their
         replications."""
-        pass
+
+        mapping_keys =[]
+        files = []
+        for key in self.mapping.keys():
+            mapping_keys.append(key+'.txt')
+        if not os.path.exists("data"):
+            os.mkdir("data")
+        for file in os.listdir('data/'):
+            files.append(file)
+
+        files.sort()
+        mapping_keys.sort()
+        for i in range(len(mapping_keys)):
+            try:
+                if files[i] != mapping_keys[i]:
+                    rep_list = list(filter(lambda x: x[:1] == mapping_keys[i][:1], files))
+                    copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
+                    files.append(mapping_keys[i])
+                    files.sort()
+            except IndexError:
+                try:
+                    rep_list = list(filter(lambda x: x[:1] == mapping_keys[i][:1], files))
+                    copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
+                    files.append(mapping_keys[i])
+                except IndexError:
+                    raise Exception("Critical integrity Error: All replications and primary lost for shard - "+mapping_keys[i][:1])
+
+                # print(files[i])
+                # print(mapping_keys[i])
+                # if files[i][:1] > mapping_keys[i][:1]:
+                #     rep_list = list(filter(lambda x: x[:1] == mapping_keys[i][:1], files))
+                #     copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
+                #     files.append(mapping_keys[i])
+                #     files.sort()
+
+                # elif files[i][:1] < mapping_keys[i][:1]:
+                #     print(2)
+                #     pass
+                # elif files[i][files[i].index('-')+1:files[i].index('.')] > mapping_keys[i][mapping_keys[i].index('-')+1:mapping_keys[i].index('.')]:
+                #     rep_list = list(filter(lambda x: x[:1] == mapping_keys[i][:1], files))
+                #     print(rep_list)
+                #     copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
+                #     files.append(mapping_keys[i])
+                #     files.sort()
+                # elif files[i][files[i].index('-')+1:files[i].index('.')] < mapping_keys[i][mapping_keys[i].index('-')+1:mapping_keys[i].index('.')]:
+                #     print(5)
+                #     pass
+                # else:
+                #     print(5)
+                #     pass
+
+
+
 
     def get_shard_data(self, shardnum=None) -> [str, Dict]:
         """Return information about a shard from the mapfile."""
@@ -229,15 +311,19 @@ class ShardHandler(object):
 
 
 s = ShardHandler()
+s.sync_replication()
 
 s.build_shards(5, load_data_from_file())
 
-print(s.mapping.keys())
 
 s.add_shard()
 
-print(s.mapping.keys())
 
 s.remove_shard()
 
-print(s.mapping.keys())
+
+s.add_replication()
+s.add_replication()
+
+
+s.remove_replication()

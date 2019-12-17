@@ -250,7 +250,7 @@ class ShardHandler(object):
             if '-' not in key:
                 src.append(key)
             else:
-                max_file = int(key[key.index('-')+1:]) if int(key[key.index('-')+1:]) > max_file else 0
+                max_file = int(key[key.index('-')+1:]) if int(key[key.index('-')+1:]) > max_file else max_file
             mapping_keys.append(key+'.txt')
         if not os.path.exists("data"):
             os.mkdir("data")
@@ -259,17 +259,24 @@ class ShardHandler(object):
 
         files.sort()
         mapping_keys.sort()
-        print(files)
-        print(mapping_keys)
+
         for i in range(len(mapping_keys)):
             try:
-                print(files[i], mapping_keys[i])
                 if files[i] != mapping_keys[i]:
                     rep_list = list(
                         filter(lambda x: x[:1] == mapping_keys[i][:1], files))
-                    copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
-                    files.append(mapping_keys[i])
-                    files.sort()
+                    if rep_list[0] != mapping_keys[i]:
+                        copyfile(f'data/{rep_list[0]}', f'data/{mapping_keys[i]}')
+                        files.append(mapping_keys[i])
+                        files.sort()
+                    else:
+                        for x in src:
+                            for i in range(max_file):
+                                v = f'{x}-{i}.txt'
+                                copyfile(f'data/{x}.txt', f'data/{v}')
+                                self._write_shard_mapping(v[:v.index('.')], "", True)
+                        self.write_map()
+
             except IndexError:
                 try:
                     rep_list = list(
@@ -281,7 +288,10 @@ class ShardHandler(object):
                         "Critical integrity Error: All replications and primary lost for shard - "+mapping_keys[i][:1])
         for x in src:
             for i in range(max_file):
-                copyfile(f'data/{x}.txt', f'data/{x}-{i}.txt')
+                v = f'{x}-{i}.txt'
+                copyfile(f'data/{x}.txt', f'data/{v}')
+                self._write_shard_mapping(v[:v.index('.')], "", True)
+        self.write_map()
 
 
     def get_shard_data(self, shardnum=None) -> [str, Dict]:

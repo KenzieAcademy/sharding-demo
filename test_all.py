@@ -39,22 +39,22 @@ def test_build_shards(sh):
 
 def test_add_shard(sh):
     with open('data/0.txt', 'r') as f:
-        assert len(f.read()) == 3735
+        assert len(f.read()) == 8510
 
     sh.add_shard()
     assert len(sh.mapping.keys()) == 2
 
     assert os.path.exists('data/1.txt')
     with open('data/0.txt', 'r') as f:
-        assert len(f.read()) == 1867
+        assert len(f.read()) == 4255
     with open('data/1.txt', 'r') as f:
-        assert len(f.read()) == 1868
+        assert len(f.read()) == 4255
 
 
 def test_add_two_shards(sh):
     assert len(sh.mapping.keys()) == 1
     with open('data/0.txt', 'r') as f:
-        assert len(f.read()) == 3735
+        assert len(f.read()) == 8510
 
     sh.add_shard()
     sh.add_shard()
@@ -62,11 +62,11 @@ def test_add_two_shards(sh):
     assert len(sh.mapping.keys()) == 3
     assert os.path.exists('data/2.txt')
     with open('data/0.txt', 'r') as f:
-        assert len(f.read()) == 1245
+        assert len(f.read()) == 2836
     with open('data/1.txt', 'r') as f:
-        assert len(f.read()) == 1245
+        assert len(f.read()) == 2836
     with open('data/2.txt', 'r') as f:
-        assert len(f.read()) == 1245
+        assert len(f.read()) == 2838
 
 
 def test_replication(sh):
@@ -103,13 +103,13 @@ def test_remove_shard(sh):
 
     assert os.path.exists('data/1.txt')
     with open('data/0.txt', 'r') as f:
-        assert len(f.read()) == 1867
+        assert len(f.read()) == 4255
 
     sh.remove_shard()
 
     assert not os.path.exists('data/1.txt')
     with open('data/0.txt', 'r') as f:
-        assert len(f.read()) == 3735
+        assert len(f.read()) == 8510
 
     assert len(sh.mapping.keys()) == 1
 

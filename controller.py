@@ -3,7 +3,7 @@ import os
 from shutil import copyfile
 from typing import List, Dict
 
-filename = "chapter2.txt"
+filename = "text.txt"
 
 
 def load_data_from_file(path=None) -> str:
